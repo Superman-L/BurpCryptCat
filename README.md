@@ -97,9 +97,9 @@ RC4、ChaCha20；填充 PKCS5(7)/NoPadding/ZeroPadding/ISO10126；也能手打�
 
 「自动」= 先按固定 IV 解，解不出可读文本再按「前 16 字节 = IV」解，两边都失败才报错。
 
-![](./images/BurpCryptCat.png)
-
 </details>
+
+![](./images/BurpCryptCat.png)
 
 ---
 
