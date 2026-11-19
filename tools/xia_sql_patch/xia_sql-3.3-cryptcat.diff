@@ -1,0 +1,235 @@
+--- /tmp/dec33/burp/BurpExtender.java	2026-11-19 13:28:00
++++ BurpExtender.3.3.java.patched	2026-11-19 13:29:53
+@@ -45,6 +45,7 @@
+ import java.util.regex.Pattern;
+ import javax.swing.JButton;
+ import javax.swing.JCheckBox;
++import javax.swing.JComboBox;
+ import javax.swing.JLabel;
+ import javax.swing.JMenuItem;
+ import javax.swing.JPanel;
+@@ -106,7 +107,7 @@
+         this.stdout.println("version:3.3");
+         this.callbacks = callbacks;
+         this.helpers = callbacks.getHelpers();
+-        callbacks.setExtensionName("xia SQL V3.3");
++        callbacks.setExtensionName("xia SQL V3.3 +BurpCrypto");
+         SwingUtilities.invokeLater(new Runnable(){
+ 
+             @Override
+@@ -128,10 +129,10 @@
+                 jp.setLeftComponent(tab_jp1);
+                 jp.setRightComponent(tab_jp2);
+                 JPanel jps = new JPanel();
+-                jps.setLayout(new GridLayout(13, 1));
++                jps.setLayout(new GridLayout(19, 1));
+                 JLabel jls = new JLabel("\u63d2\u4ef6\u540d\uff1a\u778e\u6ce8 author\uff1a\u7b97\u547d\u7e16\u5b50");
+                 JLabel jls_1 = new JLabel("blog:www.nmd5.com");
+-                JLabel jls_2 = new JLabel("\u7248\u672c\uff1axia SQL V3.3");
++                JLabel jls_2 = new JLabel("\u7248\u672c\uff1axia SQL V3.3 +BurpCrypto");
+                 JLabel jls_3 = new JLabel("\u611f\u8c22\u540d\u5355\uff1aMoonlit\u3001\u963f\u732b\u963f\u72d7\u3001Shincehor\u3001jaikishantulswani");
+                 final JCheckBox chkbox1 = new JCheckBox("\u542f\u52a8\u63d2\u4ef6", true);
+                 final JCheckBox chkbox2 = new JCheckBox("\u76d1\u63a7Repeater");
+@@ -394,9 +395,70 @@
+                         } else {
+                             diy_error_jta.setEditable(true);
+                             diy_error_jta.setBackground(Color.WHITE);
++                        }
++                    }
++                });
++                // ===== BurpCrypto：加密方案 + 发包加密 =====
++                final JLabel jls_crypto = new JLabel("\u52a0\u5bc6\u65b9\u6848(BurpCrypto):");
++                final JComboBox<String> cryptoBox = new JComboBox<String>();
++                final java.util.List<String> cryptoIds = new java.util.ArrayList<String>();
++                final boolean[] cryptoBusy = new boolean[]{true};
++                for (String[] kv : xiabridge.BurpCryptoBridge.profilesForUi()) {
++                    cryptoIds.add(kv[0]);
++                    cryptoBox.addItem(kv[1]);
++                }
++                {
++                    int idx = cryptoIds.indexOf(xiabridge.BurpCryptoBridge.selectedProfileId());
++                    cryptoBox.setSelectedIndex(idx < 0 ? 0 : idx);
++                }
++                cryptoBusy[0] = false;
++                cryptoBox.setToolTipText("Key/IV/算法都在 BurpCrypto 里改，这里只选用哪套方案");
++                cryptoBox.addActionListener(new ActionListener() {
++                    public void actionPerformed(ActionEvent ev) {
++                        if (cryptoBusy[0]) return;
++                        int i = cryptoBox.getSelectedIndex();
++                        if (i >= 0 && i < cryptoIds.size()) {
++                            xiabridge.BurpCryptoBridge.selectProfileId(cryptoIds.get(i));
++                            stdout.println("[BurpCrypto] \u52a0\u5bc6\u65b9\u6848\u5df2\u5207\u6362\uff1a" + cryptoBox.getSelectedItem());
+                         }
++                    }
++                });
++                JButton btn_crypto = new JButton("\u5237\u65b0\u52a0\u5bc6\u65b9\u6848");
++                btn_crypto.addActionListener(new ActionListener() {
++                    public void actionPerformed(ActionEvent ev) {
++                        cryptoBusy[0] = true;
++                        try {
++                            cryptoBox.removeAllItems();
++                            cryptoIds.clear();
++                            for (String[] kv : xiabridge.BurpCryptoBridge.profilesForUi()) {
++                                cryptoIds.add(kv[0]);
++                                cryptoBox.addItem(kv[1]);
++                            }
++                            int idx = cryptoIds.indexOf(xiabridge.BurpCryptoBridge.selectedProfileId());
++                            cryptoBox.setSelectedIndex(idx < 0 ? 0 : idx);
++                        } finally {
++                            cryptoBusy[0] = false;
++                        }
++                    }
++                });
++                final JLabel jls_enc = new JLabel("\u53d1\u5305\u52a0\u5bc6:");
++                final JComboBox<String> encBox = new JComboBox<String>(new String[]{
++                        "\u81ea\u52a8\uff08\u9ed8\u8ba4\uff1a\u660e\u6587\u624d\u52a0\u5bc6\uff09",
++                        "\u603b\u662f\u52a0\u5bc6\uff08\u4e0d\u505a\u5224\u5b9a\uff09",
++                        "\u4e0d\u52a0\u5bc6\uff08\u53ea\u89e3\u5bc6\u6a21\u677f\uff09"});
++                {
++                    String m = xiabridge.BurpCryptoBridge.encryptMode();
++                    encBox.setSelectedIndex("FORCE".equals(m) ? 1 : ("OFF".equals(m) ? 2 : 0));
++                }
++                encBox.addActionListener(new ActionListener() {
++                    public void actionPerformed(ActionEvent ev) {
++                        String m = encBox.getSelectedIndex() == 1 ? "FORCE"
++                                : (encBox.getSelectedIndex() == 2 ? "OFF" : "AUTO");
++                        xiabridge.BurpCryptoBridge.selectEncryptMode(m);
++                        stdout.println("[BurpCrypto] \u53d1\u5305\u52a0\u5bc6\u6a21\u5f0f\uff1a" + m);
+                     }
+                 });
++
+                 jps.add(jls);
+                 jps.add(jls_1);
+                 jps.add(jls_2);
+@@ -404,6 +466,11 @@
+                 jps.add(chkbox1);
+                 jps.add(chkbox2);
+                 jps.add(chkbox3);
++                jps.add(jls_crypto);
++                jps.add(cryptoBox);
++                jps.add(jls_enc);
++                jps.add(encBox);
++                jps.add(btn_crypto);
+                 jps.add(chkbox4);
+                 jps.add(chkbox8);
+                 jps.add(btn1);
+@@ -514,10 +581,16 @@
+     }
+ 
+     private void checkVul(IHttpRequestResponse baseRequestResponse, int toolFlag) {
++        // ===== BurpCrypto 桥接（入口）：命中方案的加密 Body 换成明文，后面解析/注入都基于明文 =====
++        byte[] bc_plain_req = xiabridge.BurpCryptoBridge.decryptRequest(baseRequestResponse, this.helpers, this.callbacks);
++        final IRequestInfo bc_info = bc_plain_req != null
++                ? this.helpers.analyzeRequest(baseRequestResponse.getHttpService(), bc_plain_req)
++                : this.helpers.analyzeRequest(baseRequestResponse);
++        final byte[] bc_req = bc_plain_req != null ? bc_plain_req : baseRequestResponse.getRequest();
+         String change_sign_1 = "";
+         String error_sign = "";
+-        List<IParameter> paraLists = this.helpers.analyzeRequest(baseRequestResponse).getParameters();
+-        this.temp_data = String.valueOf(this.helpers.analyzeRequest(baseRequestResponse).getUrl());
++        List<IParameter> paraLists = bc_info.getParameters();
++        this.temp_data = String.valueOf(bc_info.getUrl());
+         String[] temp_data_strarray = this.temp_data.split("\\?");
+         String temp_data = temp_data_strarray[0];
+         String[] white_URL_list = this.white_URL.split(",");
+@@ -537,9 +610,9 @@
+         if (toolFlag == 4 || toolFlag == 64) {
+             String[] static_file = new String[]{"jpg", "png", "gif", "css", "js", "pdf", "mp3", "mp4", "avi"};
+             String[] static_file_1 = temp_data.split("\\.");
+-            Iterator<Request_md5> static_file_2 = static_file_1[static_file_1.length - 1];
++            String static_file_2 = static_file_1[static_file_1.length - 1];
+             for (String i : static_file) {
+-                if (!((String)((Object)static_file_2)).equals(i)) continue;
++                if (!static_file_2.equals(i)) continue;
+                 this.stdout.println("\u5f53\u524durl\u4e3a\u9759\u6001\u6587\u4ef6\uff1a" + temp_data + "\n");
+                 return;
+             }
+@@ -585,7 +658,7 @@
+             temp_data = temp_data + "+" + para.getName();
+             if (para.getType() != 6 || request_data != null) continue;
+             try {
+-                request_data = this.helpers.bytesToString(baseRequestResponse.getRequest()).split("\r\n\r\n")[1];
++                request_data = this.helpers.bytesToString(bc_req).split("\r\n\r\n")[1];
+                 String[] request_datas = request_data.split("\\{");
+                 if (request_datas.length > 2) {
+                     is_add = 2;
+@@ -597,7 +670,7 @@
+                 this.stdout.println(e);
+             }
+         }
+-        temp_data = temp_data + "+" + this.helpers.analyzeRequest(baseRequestResponse).getMethod();
++        temp_data = temp_data + "+" + bc_info.getMethod();
+         this.stdout.println("\nMD5(\"" + temp_data + "\")");
+         temp_data = BurpExtender.MD5(temp_data);
+         this.stdout.println(temp_data);
+@@ -618,7 +691,7 @@
+             this.stdout.println(request_data);
+             int row = this.log.size();
+             try {
+-                this.original_data_len = this.callbacks.saveBuffersToTempFiles(baseRequestResponse).getResponse().length;
++                this.original_data_len = xiabridge.BurpCryptoBridge.snapshot(this.callbacks, baseRequestResponse, bc_plain_req).getResponse().length;
+                 this.stdout.println(this.original_data_len);
+                 if (this.original_data_len <= 0) {
+                     this.stdout.println("\u8be5\u6570\u636e\u5305\u65e0\u54cd\u5e94");
+@@ -629,12 +702,12 @@
+                 this.stdout.println("\u8be5\u6570\u636e\u5305\u65e0\u54cd\u5e94");
+                 return;
+             }
+-            this.log.add(new LogEntry(this.conut, toolFlag, this.callbacks.saveBuffersToTempFiles(baseRequestResponse), this.helpers.analyzeRequest(baseRequestResponse).getUrl(), "", "", "", temp_data, 0, "run\u2026\u2026", 999));
++            this.log.add(new LogEntry(this.conut, toolFlag, xiabridge.BurpCryptoBridge.snapshot(this.callbacks, baseRequestResponse, bc_plain_req), bc_info.getUrl(), "", "", "", temp_data, 0, "run\u2026\u2026", 999));
+             ++this.conut;
+             this.fireTableRowsInserted(row, row);
+         }
+-        List<IParameter> paraList = this.helpers.analyzeRequest(baseRequestResponse).getParameters();
+-        byte[] new_Request = baseRequestResponse.getRequest();
++        List<IParameter> paraList = bc_info.getParameters();
++        byte[] new_Request = bc_req;
+         int json_count = -1;
+         String para_name = "";
+         for (IParameter para : paraList) {
+@@ -661,7 +734,8 @@
+                     payloads.add("-0");
+                 }
+                 int change = 0;
+-                for (String string : payloads) {
++                for (Object __o : payloads) {
++                    String string = (String) __o;
+                     String change_sign;
+                     int time_1 = 0;
+                     int time_2 = 0;
+@@ -671,7 +745,7 @@
+                     IHttpService iHttpService = baseRequestResponse.getHttpService();
+                     IHttpRequestResponse requestResponse = null;
+                     if (para.getType() == 6) {
+-                        List<String> headers = this.helpers.analyzeRequest(baseRequestResponse).getHeaders();
++                        List<String> headers = bc_info.getHeaders();
+                         if (is_add == 1) {
+                             this.stdout.println("json");
+                             String newBody = "{";
+@@ -688,7 +762,7 @@
+                             byte[] bodyByte = newBody.getBytes();
+                             byte[] new_Requests = this.helpers.buildHttpMessage(headers, bodyByte);
+                             time_1 = (int)System.currentTimeMillis();
+-                            requestResponse = this.callbacks.makeHttpRequest(iHttpService, new_Requests);
++                            requestResponse = xiabridge.BurpCryptoBridge.send(this.callbacks, iHttpService, baseRequestResponse, new_Requests);
+                             time_2 = (int)System.currentTimeMillis();
+                         } else if (is_add == 2) {
+                             request_data = request_data.replaceAll("\r", "");
+@@ -753,7 +827,7 @@
+                             byte[] bodyByte = request_data_body.getBytes();
+                             byte[] new_Requests = this.helpers.buildHttpMessage(headers, bodyByte);
+                             time_1 = (int)System.currentTimeMillis();
+-                            requestResponse = this.callbacks.makeHttpRequest(iHttpService, new_Requests);
++                            requestResponse = xiabridge.BurpCryptoBridge.send(this.callbacks, iHttpService, baseRequestResponse, new_Requests);
+                             time_2 = (int)System.currentTimeMillis();
+                         }
+                     } else {
+@@ -761,7 +835,7 @@
+                         IParameter newPara = this.helpers.buildParameter(key, value + string, para.getType());
+                         byte[] newRequest = this.helpers.updateParameter(new_Request, newPara);
+                         time_1 = (int)System.currentTimeMillis();
+-                        requestResponse = this.callbacks.makeHttpRequest(iHttpService, newRequest);
++                        requestResponse = xiabridge.BurpCryptoBridge.send(this.callbacks, iHttpService, baseRequestResponse, newRequest);
+                         time_2 = (int)System.currentTimeMillis();
+                     }
+                     if (string == "'" || string == "-1" || change == 0) {

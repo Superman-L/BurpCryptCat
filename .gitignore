@@ -1,0 +1,9 @@
+# 构建产物
+build/
+out/
+tools/xia_sql_patch/build/
+*.class
+
+# 系统/临时
+__pycache__/
+.DS_Store
