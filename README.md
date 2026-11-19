@@ -28,7 +28,6 @@
 - [三种加解密方式](#三种加解密方式)
 - [四个脚本接口（重点）](#四个脚本接口重点)
 - [常见场景怎么配](#常见场景怎么配)
-- [和 xia SQL 一起用](#和-xia-sql-一起用)
 - [配置存在哪](#配置存在哪)
 - [一个绕不开的限制](#一个绕不开的限制)
 - [原理速览](#原理速览)
@@ -97,6 +96,8 @@ RC4、ChaCha20；填充 PKCS5(7)/NoPadding/ZeroPadding/ISO10126；也能手打�
 | `IV‖CT` | 每包密文都不一样，前 16 字节是随机 IV | IV 留空，模式 **自动**（或「随机 IV 前置」） |
 
 「自动」= 先按固定 IV 解，解不出可读文本再按「前 16 字节 = IV」解，两边都失败才报错。
+
+![](./images/BurpCryptCat.png)
 
 </details>
 
@@ -218,26 +219,6 @@ IV **留空**、IV 模式选 **自动**。用固定 IV 去解只会让"前 16 �
 
 ---
 
-## 和 xia SQL 一起用
-
-xia SQL 的包**已经会经过本插件**（它用旧版 `makeHttpRequest`，来源被标成 `Extensions`），
-问题只在于：它拿到的请求模板是密文，于是把 `'` 拼在 base64 尾巴上，注入没落到参数里。
-
-`tools/xia_sql_patch/` 提供了一个补丁版（基于 xia SQL **3.3 字节码**重建）：
-
-* **入口解密**：拿到请求先把 Body 解成明文 → 参数列表里能看到 `username`/`password`
-* **发包加密**：每个变异包（含 Payload）整包加密后发出
-* **响应解密**：由本插件完成，xia SQL 比对的是明文
-* 左侧新增两个选项栏：**加密方案**（用哪套，Key/IV 实时同步）、**发包加密**（自动 / 总是 / 不加密）
-
-安装：移除旧的 `xia.SQL.3.3.jdk8.jar` → Add `tools/xia_sql_patch/xia_sql_3.3_cryptcat.jar`
-→ 列表显示 **xia SQL V3.3 +BurpCryptCat**。
-
-> 不想打补丁也行：临时关掉「请求放行前重新加密」（历史里就是明文），
-> 或右键「复制明文请求（完整报文）」粘进 xia SQL。
-
----
-
 ## 配置存在哪
 
 ```text
@@ -245,7 +226,6 @@ xia SQL 的包**已经会经过本插件**（它用旧版 `makeHttpRequest`，�
 ├── config                     ← 配置本体（INI：方案 + 规则 + 全局开关）
 ├── config.bak                 ← 上次保存的备份
 ├── status.txt                 ← 当前生效状态（开关/规则/自检，不含 Key）
-├── xia_bridge.ini             ← （可选）xia SQL 用的方案选择
 └── scripts/                   ← （可选）JS 脚本
 ```
 
@@ -316,10 +296,10 @@ python3 tools/e2e_proxy.py           # 走代理打靶站，校验"两端密文 
 | Proxy 历史里没有明文 | 见[上面的限制](#一个绕不开的限制)，用页签/查看器看 |
 | 脚本方式"没生效" | 看「脚本/命令」下面那行：`已实现钩子(n/4)`，n=0 说明没编译通过或函数名写错 |
 | 外部命令很慢 | 每个报文都会跑一次进程；重逻辑（加载大模型之类）别放这里，改用 JS |
-| xia SQL 不扫描 | 「全局设置 → 对所有工具生效」没勾；或用补丁版；或模板仍是密文 |
-| 想确认配置在哪 | 「④ 全局设置」第一行，或看 `~/.BurpCrypto/status.txt` |
+| 想确认配置在哪                   | 「④ 全局设置」第一行，或看 `~/.BurpCrypto/status.txt`        |
+|                                  |                                                              |
 
-**边界**：SM4 目标用内置算法（xia SQL 桥接层不支持 SM4）；插件不重算签名头（`X-Signature` 之类要另外处理）；
+**边界**：SM4 目标用内置算法；插件不重算签名头（`X-Signature` 之类要另外处理）；
 自己开 socket 直连目标的插件，Burp 看不到，任何扩展都插不进去。
 
 ---
@@ -328,5 +308,4 @@ python3 tools/e2e_proxy.py           # 走代理打靶站，校验"两端密文 
 
 * 产品思路源自 [whwlsfb/BurpCrypto](https://github.com/whwlsfb/BurpCrypto)，本项目的配置模型与透明加解密逻辑为**重写**
 * 透明加解密的处理器编排参考了 autoDecoder 等项目的实践
-* xia SQL 补丁基于 [smxiazi/xia_sql](https://github.com/smxiazi/xia_sql) 3.3（上游未附 LICENSE，仅本地修改使用）
 * MIT License，见 [LICENSE](LICENSE)
