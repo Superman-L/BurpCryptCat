@@ -140,4 +140,4 @@
 
 📖 **完整文档（原理、Burp 各工具用法、脚本/外部命令接口与示例、其它插件怎么接入）请见 Wiki：**
 
-**<https://github.com/Superman-L/BurpCryptCat/wiki>**
+**<https://github.com/Superman-L/BurpCryptCat/wiki/BurpCryptCat-wiki>**
