@@ -15,6 +15,16 @@
 客户端 ◄─密文── Burp ◄─[加密]──  密文（客户端 / 服务端照常工作）
 ```
 
+
+
+---
+
+**基于BurpCrypto二开，原项目地址：https://github.com/whwlsfb/BurpCrypto/**
+
+---
+
+
+
 默认内置 key只动 **Body**：URL、Header、Cookie 一个字节不改。支持四种加解密方式 ——
 
 **内置算法**（AES / SM4 / DES / 3DES / RC4 / ChaCha20）
