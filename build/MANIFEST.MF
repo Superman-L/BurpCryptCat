@@ -1,0 +1,3 @@
+Implementation-Title: BurpCryptCat
+Implementation-Version: 1.7.3
+Implementation-Vendor: based on whwlsfb/BurpCrypto
