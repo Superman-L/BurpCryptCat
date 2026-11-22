@@ -18,16 +18,20 @@ public final class HelpPanel extends JPanel {
               1) 「配置方案」页：选择算法（例如 AES/CBC/PKCS5Padding），填 Key、IV，
                  选密文编码（Base64 / HEX / 原始二进制），点「保存并应用」。
                  右下角测试台可以先粘一段真实密文点「→ 解密」验证能不能解出来。
-              2) 「生效规则」页：新增一条规则，匹配方式选 Host（如 api.example.com）
-                 或 URL 通配（如 https://api.example.com/gw/*），选择刚才的方案，勾选启用。
+              2) 「生效规则」页：新增一条规则，匹配方式选 Host（如 api.example.com）、
+                 URL 通配（如 https://api.example.com/gw/*）或「自定义表达式」，选择刚才的方案，勾选启用。
+                 自定义表达式可组合 host/path/query/url，例：
+                   host == "api.example.com" && path == "/api/login"
+                   host like "*.example.com" && path startsWith "/gw/"
+                   url ~= "/login" && query contains "from=mini"
               3) 正常抓包：Repeater / Intruder 里对着明文改、对明文爆破，插件自动
                  加密后发出、自动解密响应。
 
             【二、四个位置分别发生了什么】
               Proxy 请求：客户端密文 → 解密后交给 Burp（Original 保留原始密文 / Edited 是解密后的明文）
                           明文在「BurpCryptCat明文」页签里看/改 → 真正上线前由 HttpHandler 加密 → 服务端收到密文
-              Proxy 响应：报文不动（Burp 里就是服务端原始响应）
-                          明文在「BurpCryptCat明文（响应）」页签 / 明文查看器里看
+              Proxy 响应：客户端密文 ← 解密后交给 Burp（Original response 原始密文 / Edited response 明文）
+                          回写客户端前加密回密文；想让 Burp 里一直是明文就关掉「响应回写前重新加密」
               Repeater  ：发出去之前自动加密（编辑器里可以是明文）；响应自动解密后展示
               Intruder  ：每个变异包按明文插入 Payload，发出前整包加密；响应自动解密
               只动 Body：URL、Header、Cookie 一个字节都不改（Content-Length 由报文对象维护）。
@@ -151,8 +155,8 @@ public final class HelpPanel extends JPanel {
               请求的加密放在真正上线前的 HttpHandler 里，所以 Burp 里这条请求一直是明文、
               下拉一定有得切；线上发出时仍是密文。
               在页签里改的内容会被加密（改过的内容也算）；切回 Original 再放行则一个字节都不动。
-              响应侧默认不动报文（Burp 里只有 Original response，明文只在本页签/流水里）；
-              想让响应也显示明文，把「响应回写前重新加密」关掉（客户端会收到明文）。
+              响应侧：收到就解密，Burp 里 Original response 是服务端原始密文、Edited response 是解密明文，
+              回写客户端前再加密；想让响应在 Burp 里始终是明文，关掉「响应回写前重新加密」（客户端也会收到明文）。
               Proxy 历史默认显示哪一版：Settings → Proxy → Default Proxy history message display。
 
             【十、配置存在哪】

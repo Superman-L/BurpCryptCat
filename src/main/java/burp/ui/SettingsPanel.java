@@ -191,7 +191,7 @@ public final class SettingsPanel extends JPanel {
         if (req && resp) {
             proxyHint.setText("当前：线上全密文（服务端与客户端都收到密文）。"
                     + "Proxy 请求侧可切 Original request（原始密文）/ Edited request（解密后的明文）；"
-                    + "响应保持原样，明文看「BurpCryptCat明文（响应）」页签。");
+                    + "响应侧 Original response 是原始密文、Edited response 是解密明文（回写前会再加密）。");
             proxyHint.setForeground(Ui.MUTED);
             return;
         }

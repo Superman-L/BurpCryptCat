@@ -16,7 +16,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="1.7.2"
+VERSION="1.7.3"
 OUT_JAR="build/BurpCryptCat-${VERSION}.jar"
 
 find_jdk() {

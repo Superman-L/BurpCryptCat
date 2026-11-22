@@ -5,7 +5,7 @@
 <p>
   <img alt="Burp" src="https://img.shields.io/badge/Burp-2023.12%2B-ff6633">
   <img alt="JDK" src="https://img.shields.io/badge/JDK-17%2B-blue">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-225%20passed-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-252%20passed-brightgreen">
   <img alt="Deps" src="https://img.shields.io/badge/deps-Rhino%20only-lightgrey">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -63,10 +63,20 @@
 
 决定"哪些流量走哪条方案"，避免把同域下本来不加密的页面搞坏。
 
-- 匹配方式：**Host**（支持 `*.example.com` 通配）、**URL 通配**（`*` `?`）、**URL 正则**；
+- 匹配方式：**Host**（支持 `*.example.com` 通配）、**URL 通配**（`*` `?`）、**URL 正则**、**自定义表达式**；
+- **自定义表达式**：可以组合 `host` / `path` / `query` / `url` 做复杂条件，保存时校验语法，对话框里带示例；
 - 每条规则可选作用方向（请求 / 响应）、是否启用，按列表顺序从上到下**第一条命中生效**；
 - 没命中任何规则时可指定**兜底方案**；
 - 规则单独存成 `~/.BurpCrypto/rules`。
+
+**自定义表达式示例**（变量：`host` / `path` / `query` / `url`；运算符：`==` `!=` `~=` `contains` `startsWith` `endsWith` `like`；逻辑：`&&` `||` `!` 和括号）：
+
+```text
+host == "api.example.com" && path == "/api/login"
+host like "*.example.com" && path startsWith "/gw/"
+url ~= "/login" && query contains "from=mini"
+host == "wap.example.cn" && (path == "/a" || path == "/b") && !(path contains "/public/")
+```
 
 
 
@@ -117,7 +127,7 @@
 | 位置 | 动作 |
 |---|---|
 | **Proxy 请求** | 收到密文 → 解密后交给 Burp（Original request = 原始密文 / Edited request = 解密明文）→ 真正上线前加密回密文 |
-| **Proxy 响应** | 报文不动，Burp 里就是服务端原始响应；明文在「BurpCryptCat明文（响应）」页签里看 |
+| **Proxy 响应** | 收到密文 → 解密后交给 Burp（Original response = 原始密文 / Edited response = 解密明文）→ 回写客户端前加密回密文（可在「全局设置」关掉） |
 | **Repeater** | 编辑器里是明文，点 Send 前整包加密；响应自动解密展示 |
 | **Intruder** | 对明文插 Payload，每个变异包单独加密；响应自动解密 |
 | **Scanner / 其它插件** | 打开顶层开关后一并生效（请求加密、响应解密） |

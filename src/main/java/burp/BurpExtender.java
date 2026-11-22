@@ -36,7 +36,7 @@ import java.io.PrintWriter;
  */
 public class BurpExtender implements BurpExtension {
 
-    public static final String VERSION = "1.7.2";
+    public static final String VERSION = "1.7.3";
     public static final String NAME = "BurpCryptCat";
 
     private CryptoService service;

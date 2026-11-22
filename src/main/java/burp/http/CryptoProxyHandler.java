@@ -25,7 +25,9 @@ import burp.transform.TransformResult;
  *                                          · Edited request   = 解密后的明文（含用户在页签里的改动）
  *                                     └─► Proxy 放行阶段不改报文（Burp 里保持明文）
  *                                     └─► HttpHandler.handleHttpRequestToBeSent：加密 ──密文──► 服务端
- * 服务端 ──密文──► [③ 收到响应：解密] ──► Burp 里是明文
+ * 服务端 ──密文──► [③ 收到响应：解密] ──► Burp 里两个版本：
+ *                                          · Original response = 服务端原始响应（密文）
+ *                                          · Edited response   = 解密后的明文
  *                                     └─► [④ 回写客户端前：加密] ──密文──► 客户端
  * </pre>
  *
@@ -34,10 +36,10 @@ import burp.transform.TransformResult;
  * 请求编辑器的报文类型下拉（Original request / Edited request）就没有可切的第二项了。
  * 放到 HttpHandler（真正上线前的最后一站）后：Burp 里留明文、下拉可切，线上仍然是密文。</p>
  *
- * <p><b>响应侧保持"不动报文"</b>（默认）：收到响应时只做试探性解密用于页签/流水，
- * 报文原样交给 Burp —— 这样 Burp 里只有 Original response（服务端的原始响应），
- * 不会出现一个"不是明文"的 Edited response；客户端收到的也是原始字节。
- * 把「响应回写前重新加密」关掉，才会把响应换成明文（Burp/历史显示明文，客户端也收到明文）。</p>
+ * <p><b>响应侧</b>没有对应的"回写后再加密"钩子（HttpHandler 只有 response-received，
+ * 没有 response-to-be-sent），所以回写前会把明文再加回密文，客户端仍然收到密文。
+ * 如果希望 Burp 里（包括报文类型下拉里"解密后"的版本）永远是明文，
+ * 把「响应回写前重新加密」关掉即可 —— 代价是客户端也会收到明文。</p>
  *
  * <p>加密时只在"这段明文确实与本扩展有关"时才动手（见 {@link HandoffCache}）：内容命中
  * （原样放行）或 messageId 命中（用户在页签里改过明文）；如果 Body 还是收到时那份原件
@@ -123,18 +125,12 @@ public final class CryptoProxyHandler implements ProxyRequestHandler, ProxyRespo
                 handoff.mark(false, url, result.body);
                 handoff.markMessage(false, response.messageId());
                 handoff.markOriginal(false, response.messageId(), body);
-                if (!service.config().proxyReencryptResponse) {
-                    // 关掉「回写前重新加密」= 接受客户端收到明文 → 直接把明文交给 Burp
-                    Log.debug("[proxy] 响应已解密（历史显示明文）：" + url);
-                    return ProxyResponseReceivedAction.continueWith(
-                            response.withBody(ByteArray.byteArray(result.body)),
-                            note(response.annotations(), "BurpCryptCat 已解密"));
-                }
-                // 默认：响应保持服务端返回的原样（Original response = 原始密文），
-                // 不在 Burp 里造一个"不是明文"的 Edited response；明文只在页签/流水里看
-                Log.debug("[proxy] 响应明文见「BurpCryptCat明文（响应）」页签：" + url);
+                // 换成明文交给 Burp：Original response（服务端原始密文）与解密后的版本都在，
+                // 报文类型下拉才有的切；「BurpCryptCat明文（响应）」页签看的也是明文
+                Log.debug("[proxy] 响应已解密（Original response 仍是原始密文）：" + url);
                 return ProxyResponseReceivedAction.continueWith(
-                        response, note(response.annotations(), "BurpCryptCat 明文见页签"));
+                        response.withBody(ByteArray.byteArray(result.body)),
+                        note(response.annotations(), "BurpCryptCat 已解密"));
             }
         } catch (Exception e) {
             Log.error("Proxy 响应解密异常（已放行原始报文）", e);

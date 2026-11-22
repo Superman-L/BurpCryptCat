@@ -45,6 +45,7 @@ public final class BurpCryptoTests {
         iniRoundTrip();
         configFilePersistence();
         ruleMatching();
+        customRuleExpression();
         resolverPriority();
         allToolsSwitch();
         scriptEngine();
@@ -383,6 +384,99 @@ public final class BurpCryptoTests {
 
         eq("hostOf 去端口", "a.com", TargetResolver.hostOf("https://a.com:8443/x?y=1"));
         eq("hostOf 无端口", "a.com", TargetResolver.hostOf("https://a.com/x"));
+    }
+
+    /** 自定义表达式规则：host/path/query/url + 运算符 + 逻辑组合 + 语法校验 */
+    private static void customRuleExpression() {
+        try {
+            burp.config.RuleExpression e = burp.config.RuleExpression.compile(
+                    "host == \"api.example.com\" && path == \"/api/login\"");
+            eq("自定义：host+path 全等命中", true,
+                    e.test("api.example.com", "https://api.example.com/api/login"));
+            eq("自定义：host 不同不命中", false, e.test("x.com", "https://x.com/api/login"));
+            eq("自定义：path 不同不命中", false, e.test("api.example.com", "https://api.example.com/api/other"));
+
+            eq("自定义：startsWith", true, burp.config.RuleExpression
+                    .compile("path startsWith \"/gw/\"")
+                    .test("a.com", "https://a.com/gw/foo?x=1"));
+            eq("自定义：like 通配", true, burp.config.RuleExpression
+                    .compile("host like \"*.example.com\"")
+                    .test("api.example.com", "https://api.example.com/x"));
+            eq("自定义：like 不命中", false, burp.config.RuleExpression
+                    .compile("host like \"*.example.com\"")
+                    .test("example.com.evil.cn", "https://example.com.evil.cn/x"));
+            eq("自定义：正则 find", true, burp.config.RuleExpression
+                    .compile("url ~= \"/login\"")
+                    .test("a.com", "https://a.com/v1/login?x=1"));
+            eq("自定义：query 取参", true, burp.config.RuleExpression
+                    .compile("query contains \"from=mini\"")
+                    .test("a.com", "https://a.com/p?from=mini&id=1"));
+            eq("自定义：无 query 为空串", true, burp.config.RuleExpression
+                    .compile("query == \"\"")
+                    .test("a.com", "https://a.com/p"));
+            eq("自定义：!= 与括号", true, burp.config.RuleExpression
+                    .compile("host == \"a.com\" && !(path contains \"/public/\")")
+                    .test("a.com", "https://a.com/app/index"));
+            eq("自定义：&& 优先于 ||", true, burp.config.RuleExpression
+                    .compile("host == \"a.com\" || host == \"b.com\" && path == \"/x\"")
+                    .test("a.com", "https://a.com/y"));
+            eq("自定义：大小写不敏感（host 值需一致）", false, burp.config.RuleExpression
+                    .compile("host == \"A.com\"")
+                    .test("a.com", "https://a.com/x"));
+            eq("自定义：正则忽略大小写", true, burp.config.RuleExpression
+                    .compile("url ~= \"/API/\"")
+                    .test("a.com", "https://a.com/api/x"));
+            eq("自定义：endsWith", true, burp.config.RuleExpression
+                    .compile("path endsWith \".do\"")
+                    .test("a.com", "https://a.com/sys/login.do"));
+
+            // 语法错误
+            expectInvalid("自定义：未知变量", "foo == \"x\"");
+            expectInvalid("自定义：缺右括号", "(host == \"a\"");
+            expectInvalid("自定义：字符串未闭合", "host == \"a");
+            expectInvalid("自定义：缺操作数", "host ==");
+            expectInvalid("自定义：正则写错", "url ~= \"[\"");
+
+            // Rule 集成 + 配置往返
+            AppConfig cfg = AppConfig.defaults();
+            Rule rule = new Rule("sample", Rule.MatchType.CUSTOM,
+                    "host == \"api.example.com\" && path == \"/api/login\"");
+            eq("自定义规则：validate 通过", null, rule.validate(cfg));
+            eq("自定义规则：命中", true,
+                    rule.matches("api.example.com", "https://api.example.com/api/login"));
+            eq("自定义规则：不命中", false,
+                    rule.matches("api.example.com", "https://api.example.com/other"));
+            eq("自定义规则：描述带类型", true, rule.describe().contains("自定义表达式"));
+
+            Rule bad = new Rule("sample", Rule.MatchType.CUSTOM, "host == ");
+            eq("自定义规则：非法表达式 validate 报错", true,
+                    bad.validate(cfg) != null && bad.validate(cfg).contains("自定义表达式错误"));
+            eq("自定义规则：非法表达式不命中", false, bad.matches("a.com", "https://a.com/x"));
+
+            AppConfig back = AppConfig.fromIni(cfgWithRule(cfg, rule).toIni());
+            eq("自定义规则：配置往返保留类型", Rule.MatchType.CUSTOM, back.rules.get(0).matchType);
+            eq("自定义规则：配置往返保留表达式",
+                    "host == \"api.example.com\" && path == \"/api/login\"",
+                    back.rules.get(0).pattern);
+        } catch (Exception e) {
+            fail("自定义表达式规则", e);
+        }
+    }
+
+    private static AppConfig cfgWithRule(AppConfig base, Rule rule) {
+        AppConfig c = AppConfig.fromIni(base.toIni());
+        c.rules.clear();
+        c.rules.add(rule);
+        return c;
+    }
+
+    private static void expectInvalid(String name, String expr) {
+        try {
+            burp.config.RuleExpression.compile(expr);
+            fail(name + "（应当报错却通过了）", new IllegalStateException(expr));
+        } catch (IllegalArgumentException expected) {
+            ok(name);
+        }
     }
 
     private static void resolverPriority() {

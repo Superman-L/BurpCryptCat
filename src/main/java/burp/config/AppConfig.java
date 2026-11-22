@@ -442,7 +442,7 @@ public final class AppConfig {
     public String rulesToIni() {
         StringBuilder sb = new StringBuilder();
         sb.append("# BurpCryptCat 生效规则（自上而下匹配，第一条命中即生效）\n");
-        sb.append("# 字段：enabled / matchType(HOST|URL_GLOB|URL_REGEX) / pattern / profile / onRequest / onResponse\n\n");
+        sb.append("# 字段：enabled / matchType(HOST|URL_GLOB|URL_REGEX|CUSTOM) / pattern / profile / onRequest / onResponse\n\n");
         for (Rule r : rules) {
             sb.append("[rule]\n");
             kv(sb, "id", r.id);

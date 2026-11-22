@@ -19,7 +19,9 @@ public final class Rule {
         /** 按完整 URL glob 匹配，支持 * 与 ? */
         URL_GLOB("URL 通配"),
         /** 按完整 URL 正则匹配 */
-        URL_REGEX("URL 正则");
+        URL_REGEX("URL 正则"),
+        /** 自定义表达式：host / path / query / url + == != ~= contains startsWith endsWith like，支持 && || ! 等 */
+        CUSTOM("自定义表达式");
 
         private final String label;
 
@@ -61,6 +63,8 @@ public final class Rule {
 
     private transient Pattern compiled;
     private transient String compiledSource;
+    private transient RuleExpression expression;
+    private transient String expressionSource;
 
     public Rule() {
     }
@@ -74,6 +78,8 @@ public final class Rule {
     public void touch() {
         compiled = null;
         compiledSource = null;
+        expression = null;
+        expressionSource = null;
     }
 
     /** 是否命中。host 不含端口，url 为完整 URL。 */
@@ -92,6 +98,10 @@ public final class Rule {
                 Pattern re = compile(p);
                 yield re != null && re.matcher(url == null ? "" : url).find();
             }
+            case CUSTOM -> {
+                RuleExpression expr = expression(p);
+                yield expr != null && expr.test(host, url);
+            }
         };
     }
 
@@ -109,6 +119,22 @@ public final class Rule {
             return h.endsWith(p) || h.equals(p.substring(1));
         }
         return h.equals(p) || h.endsWith("." + p);
+    }
+
+    /** 自定义表达式：编译失败返回 null（不命中，不影响其它规则）。 */
+    private RuleExpression expression(String p) {
+        if (expression != null && p.equals(expressionSource)) {
+            return expression;
+        }
+        try {
+            expression = RuleExpression.compile(p);
+            expressionSource = p;
+            return expression;
+        } catch (IllegalArgumentException e) {
+            expression = null;
+            expressionSource = p;
+            return null;
+        }
     }
 
     private Pattern glob(String p) {
@@ -155,6 +181,13 @@ public final class Rule {
                 Pattern.compile(pattern);
             } catch (PatternSyntaxException e) {
                 return "正则语法错误：" + e.getDescription();
+            }
+        }
+        if (matchType == MatchType.CUSTOM) {
+            try {
+                RuleExpression.compile(pattern);
+            } catch (IllegalArgumentException e) {
+                return "自定义表达式错误：" + e.getMessage();
             }
         }
         return null;

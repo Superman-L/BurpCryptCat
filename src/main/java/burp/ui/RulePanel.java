@@ -81,7 +81,8 @@ public final class RulePanel extends JPanel {
             }
         }
         legend.setText("共 " + ctx.config().rules.size() + " 条，启用 " + enabled + " 条。"
-                + "匹配方式：Host 支持 *.example.com；URL 通配支持 * 和 ?；URL 正则用 Java 正则语法。");
+                + "匹配方式：Host 支持 *.example.com；URL 通配支持 * 和 ?；URL 正则用 Java 正则；"
+                + "自定义表达式可组合 host / path / query / url（例：host == \"a.com\" && path == \"/api/login\"）。");
     }
 
     private void onAdd() {
@@ -143,61 +144,114 @@ public final class RulePanel extends JPanel {
     /* ==================== 编辑对话框 ==================== */
 
     private boolean editDialog(Rule rule, String title) {
-        JComboBox<Rule.MatchType> typeBox = new JComboBox<>(Rule.MatchType.values());
-        typeBox.setSelectedItem(rule.matchType);
-        JTextField patternField = new JTextField(rule.pattern, 34);
+        Rule.MatchType type = rule.matchType;
+        String patternText = rule.pattern;
+        String profileId = rule.profileId;
+        boolean onReq = rule.onRequest;
+        boolean onResp = rule.onResponse;
+        String comment = rule.comment;
 
-        List<Profile> profiles = new ArrayList<>(ctx.config().profiles);
-        JComboBox<Profile> profileBox = new JComboBox<>(profiles.toArray(new Profile[0]));
-        for (Profile p : profiles) {
-            if (p.id.equals(rule.profileId)) {
-                profileBox.setSelectedItem(p);
+        while (true) {
+            JComboBox<Rule.MatchType> typeBox = new JComboBox<>(Rule.MatchType.values());
+            typeBox.setSelectedItem(type);
+            JTextField patternField = new JTextField(patternText, 34);
+
+            List<Profile> profiles = new ArrayList<>(ctx.config().profiles);
+            JComboBox<Profile> profileBox = new JComboBox<>(profiles.toArray(new Profile[0]));
+            for (Profile p : profiles) {
+                if (p.id.equals(profileId)) {
+                    profileBox.setSelectedItem(p);
+                }
             }
-        }
-        JCheckBox reqBox = new JCheckBox("请求（密文↔明文）", rule.onRequest);
-        JCheckBox respBox = new JCheckBox("响应（密文↔明文）", rule.onResponse);
-        JTextField commentField = new JTextField(rule.comment, 34);
+            JCheckBox reqBox = new JCheckBox("请求（密文↔明文）", onReq);
+            JCheckBox respBox = new JCheckBox("响应（密文↔明文）", onResp);
+            JTextField commentField = new JTextField(comment, 34);
 
-        JLabel tip = Ui.hint("Host 例：api.example.com 或 *.example.com     URL 通配例：https://a.com/gw/*");
-        tip.setForeground(Ui.MUTED);
+            JLabel tip = Ui.hint(" ");
+            tip.setForeground(Ui.MUTED);
+            updateRuleTip(typeBox, tip);
+            typeBox.addActionListener(e -> {
+                Rule.MatchType now = (Rule.MatchType) typeBox.getSelectedItem();
+                if (now == Rule.MatchType.CUSTOM
+                        && (patternField.getText().isBlank() || patternField.getText().trim().equals("*"))) {
+                    patternField.setText("host like \"*\"");
+                }
+                updateRuleTip(typeBox, tip);
+            });
 
-        Ui.Form form = new Ui.Form();
-        form.add("匹配方式", typeBox);
-        form.add("匹配内容", patternField);
-        form.add("", tip);
-        form.add("使用方案", profileBox);
-        JPanel dir = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        dir.add(reqBox);
-        dir.add(respBox);
-        form.add("处理方向", dir);
-        form.add("备注", commentField);
+            Ui.Form form = new Ui.Form();
+            form.add("匹配方式", typeBox);
+            form.add("匹配内容", patternField);
+            form.add("", tip);
+            form.add("使用方案", profileBox);
+            JPanel dir = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            dir.add(reqBox);
+            dir.add(respBox);
+            form.add("处理方向", dir);
+            form.add("备注", commentField);
 
-        JPanel wrap = new JPanel(new BorderLayout(6, 6));
-        wrap.setBorder(new EmptyBorder(10, 12, 10, 12));
-        wrap.add(form.build(), BorderLayout.CENTER);
-        wrap.setPreferredSize(new Dimension(560, 300));
+            JPanel wrap = new JPanel(new BorderLayout(6, 6));
+            wrap.setBorder(new EmptyBorder(10, 12, 10, 12));
+            wrap.add(form.build(), BorderLayout.CENTER);
+            wrap.setPreferredSize(new Dimension(580, 360));
 
-        int ok = javax.swing.JOptionPane.showConfirmDialog(this, wrap, title,
-                javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
-        if (ok != javax.swing.JOptionPane.OK_OPTION) {
-            return false;
+            int ok = javax.swing.JOptionPane.showConfirmDialog(this, wrap, title,
+                    javax.swing.JOptionPane.OK_CANCEL_OPTION, javax.swing.JOptionPane.PLAIN_MESSAGE);
+            if (ok != javax.swing.JOptionPane.OK_OPTION) {
+                return false;
+            }
+            type = (Rule.MatchType) typeBox.getSelectedItem();
+            patternText = patternField.getText().trim();
+            if (patternText.isEmpty()) {
+                patternText = "*";
+            }
+            Profile selected = (Profile) profileBox.getSelectedItem();
+            profileId = selected == null ? "" : selected.id;
+            onReq = reqBox.isSelected();
+            onResp = respBox.isSelected();
+            comment = commentField.getText();
+
+            // 先在草稿上校验，避免把非法内容写回真实规则
+            Rule draft = new Rule(profileId, type, patternText);
+            draft.enabled = rule.enabled;
+            draft.onRequest = onReq;
+            draft.onResponse = onResp;
+            draft.comment = comment;
+            String err = draft.validate(ctx.config());
+            if (err != null) {
+                Ui.error(this, "规则有误", err);
+                continue;               // 带着刚才填的内容重新打开
+            }
+            rule.matchType = type;
+            rule.pattern = patternText;
+            rule.profileId = profileId;
+            rule.onRequest = onReq;
+            rule.onResponse = onResp;
+            rule.comment = comment;
+            rule.touch();
+            return true;
         }
-        rule.matchType = (Rule.MatchType) typeBox.getSelectedItem();
-        rule.pattern = patternField.getText().trim();
-        Profile selected = (Profile) profileBox.getSelectedItem();
-        rule.profileId = selected == null ? "" : selected.id;
-        rule.onRequest = reqBox.isSelected();
-        rule.onResponse = respBox.isSelected();
-        rule.comment = commentField.getText();
-        if (rule.pattern.isEmpty()) {
-            rule.pattern = "*";
+    }
+
+    /** 按匹配方式更新提示（自定义表达式给出示例）。 */
+    private static void updateRuleTip(JComboBox<Rule.MatchType> typeBox, JLabel tip) {
+        Rule.MatchType type = (Rule.MatchType) typeBox.getSelectedItem();
+        if (type == null) {
+            type = Rule.MatchType.HOST;
         }
-        String err = rule.validate(ctx.config());
-        if (err != null) {
-            Ui.error(this, "规则有误", err);
-            return false;
-        }
-        return true;
+        String text = switch (type) {
+            case HOST -> "Host 例：api.example.com 或 *.example.com（忽略大小写）";
+            case URL_GLOB -> "URL 通配例：https://api.example.com/gw/*（* 任意串，? 单个字符）";
+            case URL_REGEX -> "URL 正则例：/gw/.*\\?id=\\d+（Java 正则，忽略大小写）";
+            case CUSTOM -> "<html>"
+                    + "例 1：host == \"api.example.com\" &amp;&amp; path == \"/api/login\"<br>"
+                    + "例 2：host like \"*.example.com\" &amp;&amp; path startsWith \"/gw/\"<br>"
+                    + "例 3：url ~= \"/login\" &amp;&amp; query contains \"from=mini\"<br>"
+                    + "变量：host / path / query / url　运算符：== != ~= contains startsWith endsWith like<br>"
+                    + "逻辑：&amp;&amp; || ! 和括号（字符串用双引号或单引号）"
+                    + "</html>";
+        };
+        tip.setText(text);
     }
 
     /* ==================== 表格模型 ==================== */
